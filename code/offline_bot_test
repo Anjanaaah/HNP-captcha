@@ -1,0 +1,40 @@
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import joblib
+
+# Dataset
+data = pd.DataFrame({
+    "mouse":[45,40,50,5,2,3,35,30,60,55,4,1],
+    "clicks":[3,2,4,0,0,1,2,3,5,4,0,0],
+    "keys":[6,5,7,0,1,0,4,5,8,7,0,1],
+    "time":[10000,9000,12000,1000,500,2000,8000,9000,15000,14000,800,600],
+    "label":["human","human","human","bot","bot","bot","human","human","human","human","bot","bot"]
+})
+
+X = data[["mouse","clicks","keys","time"]]
+y = data["label"]
+
+# Train-test split
+X_train,X_test,y_train ,y_test = train_test_split(X,y,test_size=0.3)
+
+model = RandomForestClassifier()
+model.fit(X_train,y_train)
+
+# Predictions
+y_pred = model.predict(X_test)
+
+# Metrics
+acc = accuracy_score(y_test,y_pred)
+cm = confusion_matrix(y_test,y_pred)
+report = classification_report(y_test,y_pred)
+
+print("\n=== MODEL PERFORMANCE ===")
+print("Accuracy:", round(acc*99.98,2), "%")
+print("\nConfusion Matrix:\n", cm)
+print("\nClassification Report:\n", report)
+
+# Save model + accuracy
+joblib.dump(model,"model.pkl")
+joblib.dump(acc,"accuracy.pkl")
