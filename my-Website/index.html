@@ -5,39 +5,51 @@
 
 <style>
 body{
-background:#0f172a;
-color:white;
-display:flex;
-justify-content:center;
-align-items:center;
-height:100vh;
-font-family:Segoe UI;
+    background:#0f172a;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    min-height:100vh;
+    font-family:Segoe UI,Arial,sans-serif;
 }
 
 .container{
-background:#1e293b;
-padding:30px;
-border-radius:10px;
-text-align:center;
-width:400px;
+    background:#1e293b;
+    padding:30px;
+    border-radius:10px;
+    text-align:center;
+    width:400px;
 }
 
 input,button{
-width:100%;
-padding:10px;
-margin-top:10px;
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+    box-sizing:border-box;
 }
 
 button{
-background:#3b82f6;
-border:none;
-color:white;
-font-weight:bold;
+    background:#3b82f6;
+    border:none;
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
 }
 
-canvas{margin-top:10px;}
+canvas{
+    margin-top:10px;
+    border:1px solid #475569;
+}
 
-#score{color:#22c55e;}
+#score{
+    color:#22c55e;
+}
+
+#behaviour{
+    color:#94a3b8;
+    font-size:13px;
+}
 </style>
 </head>
 
@@ -60,218 +72,734 @@ canvas{margin-top:10px;}
 
 <p id="status"></p>
 <p id="score"></p>
+<p id="behaviour"></p>
 
 </div>
 
 <script>
 
-/* ===== Behaviour Tracking ===== */
-let movements=0, clicks=0, keys=0, startTime=Date.now()
+/* =========================================================
+   BEHAVIOUR TRACKING
+========================================================= */
 
-document.addEventListener("mousemove",()=>movements++)
-document.addEventListener("click",()=>clicks++)
-document.addEventListener("keydown",()=>keys++)
+let movements = 0;
+let clicks = 0;
+let keys = 0;
 
-/* ===== QUESTION BANK ===== */
+let totalDistance = 0;
+let directionChanges = 0;
+
+let lastX = null;
+let lastY = null;
+let lastDX = null;
+let lastDY = null;
+
+let mouseTimes = [];
+let clickTimes = [];
+let keyTimes = [];
+
+let startTime = Date.now();
+
+
+/* =========================================================
+   MOUSE TRACKING
+========================================================= */
+
+document.addEventListener("mousemove", function(e){
+
+    movements++;
+
+    const now = Date.now();
+    mouseTimes.push(now);
+
+    if(lastX !== null){
+
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+
+        const distance = Math.sqrt(
+            dx * dx + dy * dy
+        );
+
+        totalDistance += distance;
+
+        /*
+         * Direction-change detection
+         */
+
+        if(lastDX !== null && lastDY !== null){
+
+            const dot = dx * lastDX + dy * lastDY;
+
+            if(dot < 0){
+                directionChanges++;
+            }
+        }
+
+        lastDX = dx;
+        lastDY = dy;
+    }
+
+    lastX = e.clientX;
+    lastY = e.clientY;
+});
+
+
+/* =========================================================
+   CLICK TRACKING
+========================================================= */
+
+document.addEventListener("click", function(){
+
+    clicks++;
+
+    clickTimes.push(Date.now());
+});
+
+
+/* =========================================================
+   KEYBOARD TRACKING
+========================================================= */
+
+document.addEventListener("keydown", function(){
+
+    keys;
+
+    keys++;
+
+    keyTimes.push(Date.now());
+});
+
+
+/* =========================================================
+   QUESTION BANK
+========================================================= */
+
 const questionBank = {
+
 Easy: [
-"Enter characters closer to top",
-"Enter characters closer to bottom",
-"Enter larger characters",
-"Enter smaller characters",
-"Enter darker characters",
-"Enter straight (non-tilted) characters",
-"Enter the first 2 characters",
-"Enter the last 2 characters"
+    "Enter characters closer to top",
+    "Enter characters closer to bottom",
+    "Enter larger characters",
+    "Enter smaller characters",
+    "Enter darker characters",
+    "Enter straight (non-tilted) characters",
+    "Enter the first 2 characters",
+    "Enter the last 2 characters"
 ],
 
 Medium: [
-"Enter tilted characters",
-"Enter blurred characters",
-"Enter characters in different font",
-"Enter compressed characters"
+    "Enter tilted characters",
+    "Enter blurred characters",
+    "Enter characters in different font",
+    "Enter compressed characters"
 ],
 
 Hard: [
-"Enter overlapping characters",
-"Enter characters crossed by curve"
+    "Enter overlapping characters",
+    "Enter characters crossed by curve"
 ]
-}
 
-let currentDifficulty = "Easy"
-let currentQuestion = ""
-let meta = []
+};
+
+
+let currentDifficulty = "Easy";
+let currentQuestion = "";
+let meta = [];
+
+
+/* =========================================================
+   PICK QUESTION
+========================================================= */
 
 function pickQuestion(){
-let list = questionBank[currentDifficulty]
-currentQuestion = list[Math.floor(Math.random()*list.length)]
 
-document.getElementById("question").innerText =
-currentQuestion + " (" + currentDifficulty + ")"
+    let list = questionBank[currentDifficulty];
+
+    currentQuestion =
+        list[Math.floor(Math.random() * list.length)];
+
+    document.getElementById("question").innerText =
+        currentQuestion + " (" + currentDifficulty + ")";
 }
 
-/* ===== CAPTCHA GENERATION ===== */
+
+/* =========================================================
+   GENERATE CAPTCHA
+========================================================= */
+
 function generateCaptcha(){
 
-const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-meta=[]
+    const chars =
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-for(let i=0;i<6;i++){
+    meta = [];
 
-meta.push({
-char: chars[Math.floor(Math.random()*chars.length)],
-x: 30+i*40,
-y: 40+Math.random()*40,
-angle: (Math.random()-0.5)*1.5,
-size: 28+Math.random()*15,
-color: Math.random()*150,
-font: Math.random()>0.5?"Arial":"Courier",
-blur: Math.random()>0.7,
-overlap: Math.random()>0.6,
-curve: Math.random()>0.6
-})
+    for(let i = 0; i < 6; i++){
 
+        meta.push({
+
+            char:
+                chars[Math.floor(Math.random() * chars.length)],
+
+            x:
+                30 + i * 40,
+
+            y:
+                40 + Math.random() * 40,
+
+            angle:
+                (Math.random() - 0.5) * 1.5,
+
+            size:
+                28 + Math.random() * 15,
+
+            color:
+                Math.random() * 150,
+
+            font:
+                Math.random() > 0.5
+                ? "Arial"
+                : "Courier",
+
+            blur:
+                Math.random() > 0.7,
+
+            overlap:
+                Math.random() > 0.6,
+
+            curve:
+                Math.random() > 0.6
+        });
+    }
 }
-}
+
+
+/* =========================================================
+   DRAW CAPTCHA
+========================================================= */
 
 function drawCaptcha(){
 
-generateCaptcha()
-pickQuestion()
+    generateCaptcha();
+    pickQuestion();
 
-let c=document.getElementById("captchaCanvas")
-let ctx=c.getContext("2d")
+    let canvas =
+        document.getElementById("captchaCanvas");
 
-ctx.clearRect(0,0,320,120)
+    let ctx =
+        canvas.getContext("2d");
 
-/* HARD → curve */
-if(currentDifficulty==="Hard"){
-ctx.beginPath()
-for(let i=0;i<320;i++){
-ctx.lineTo(i,60+Math.sin(i*0.05)*20)
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+
+    /* HARD CURVE */
+
+    if(currentDifficulty === "Hard"){
+
+        ctx.beginPath();
+
+        for(let i = 0; i < 320; i++){
+
+            ctx.lineTo(
+                i,
+                60 + Math.sin(i * 0.05) * 20
+            );
+        }
+
+        ctx.stroke();
+    }
+
+
+    /* DRAW CHARACTERS */
+
+    meta.forEach(function(m){
+
+        ctx.save();
+
+        ctx.translate(m.x, m.y);
+
+        ctx.rotate(m.angle);
+
+        ctx.font =
+            `bold ${m.size}px ${m.font}`;
+
+        ctx.fillStyle =
+            `rgb(${m.color},${m.color},${m.color})`;
+
+        if(
+            m.blur &&
+            currentDifficulty !== "Easy"
+        ){
+            ctx.globalAlpha = 0.5;
+        }
+
+        ctx.fillText(
+            m.char,
+            0,
+            0
+        );
+
+        ctx.restore();
+
+
+        /* OVERLAP */
+
+        if(
+            m.overlap &&
+            currentDifficulty !== "Easy"
+        ){
+
+            ctx.beginPath();
+
+            ctx.moveTo(
+                m.x - 10,
+                m.y - 10
+            );
+
+            ctx.lineTo(
+                m.x + 20,
+                m.y + 10
+            );
+
+            ctx.strokeStyle = "red";
+
+            ctx.stroke();
+        }
+
+    });
 }
-ctx.stroke()
-}
 
-meta.forEach(m=>{
 
-ctx.save()
-ctx.translate(m.x,m.y)
-ctx.rotate(m.angle)
+/* =========================================================
+   CAPTCHA ANSWER
+========================================================= */
 
-ctx.font=`bold ${m.size}px ${m.font}`
-ctx.fillStyle=`rgb(${m.color},${m.color},${m.color})`
-
-if(m.blur && currentDifficulty!=="Easy") ctx.globalAlpha=0.5
-
-ctx.fillText(m.char,0,0)
-ctx.restore()
-
-if(m.overlap && currentDifficulty!=="Easy"){
-ctx.beginPath()
-ctx.moveTo(m.x-10,m.y-10)
-ctx.lineTo(m.x+20,m.y+10)
-ctx.strokeStyle="red"
-ctx.stroke()
-}
-
-})
-
-}
-
-/* ===== ANSWER LOGIC ===== */
 function getAnswer(){
 
-let res=""
+    let res = "";
 
-meta.forEach((m,i)=>{
+    meta.forEach(function(m, i){
 
-if(currentQuestion.includes("top") && m.y<50) res+=m.char
-if(currentQuestion.includes("bottom") && m.y>70) res+=m.char
-if(currentQuestion.includes("larger") && m.size>35) res+=m.char
-if(currentQuestion.includes("smaller") && m.size<32) res+=m.char
-if(currentQuestion.includes("darker") && m.color<70) res+=m.char
-if(currentQuestion.includes("straight") && Math.abs(m.angle)<0.2) res+=m.char
+        if(
+            currentQuestion.includes("top") &&
+            m.y < 50
+        )
+            res += m.char;
 
-if(currentQuestion.includes("tilted") && Math.abs(m.angle)>0.5) res+=m.char
-if(currentQuestion.includes("blurred") && m.blur) res+=m.char
-if(currentQuestion.includes("font") && m.font==="Courier") res+=m.char
-if(currentQuestion.includes("compressed") && i>0 && Math.abs(meta[i].x-meta[i-1].x)<35) res+=m.char
 
-if(currentQuestion.includes("overlapping") && m.overlap) res+=m.char
-if(currentQuestion.includes("curve") && m.curve) res+=m.char
+        if(
+            currentQuestion.includes("bottom") &&
+            m.y > 70
+        )
+            res += m.char;
 
-})
 
-if(currentQuestion.includes("first 2")){
-return meta[0].char + meta[1].char
+        if(
+            currentQuestion.includes("larger") &&
+            m.size > 35
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("smaller") &&
+            m.size < 32
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("darker") &&
+            m.color < 70
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("straight") &&
+            Math.abs(m.angle) < 0.2
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("tilted") &&
+            Math.abs(m.angle) > 0.5
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("blurred") &&
+            m.blur
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("font") &&
+            m.font === "Courier"
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("compressed") &&
+            i > 0 &&
+            Math.abs(
+                meta[i].x - meta[i-1].x
+            ) < 35
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("overlapping") &&
+            m.overlap
+        )
+            res += m.char;
+
+
+        if(
+            currentQuestion.includes("curve") &&
+            m.curve
+        )
+            res += m.char;
+
+    });
+
+
+    if(currentQuestion.includes("first 2")){
+
+        return (
+            meta[0].char +
+            meta[1].char
+        );
+    }
+
+
+    if(currentQuestion.includes("last 2")){
+
+        let n = meta.length;
+
+        return (
+            meta[n-2].char +
+            meta[n-1].char
+        );
+    }
+
+
+    return res;
 }
 
-if(currentQuestion.includes("last 2")){
-let n = meta.length
-return meta[n-2].char + meta[n-1].char
+
+/* =========================================================
+   STATISTICS
+========================================================= */
+
+function averageInterval(times){
+
+    if(times.length < 2)
+        return 0;
+
+    let total = 0;
+
+    for(let i = 1; i < times.length; i++){
+
+        total +=
+            times[i] - times[i-1];
+    }
+
+    return total / (times.length - 1);
 }
 
-return res
+
+function intervalVariance(times){
+
+    if(times.length < 3)
+        return 0;
+
+    let intervals = [];
+
+    for(let i = 1; i < times.length; i++){
+
+        intervals.push(
+            times[i] - times[i-1]
+        );
+    }
+
+    let mean =
+        intervals.reduce(
+            (a,b) => a+b,
+            0
+        ) / intervals.length;
+
+    let variance = 0;
+
+    intervals.forEach(function(x){
+
+        variance +=
+            Math.pow(x - mean, 2);
+    });
+
+    return variance / intervals.length;
 }
 
-/* ===== VERIFY ===== */
+
+/* =========================================================
+   VERIFY
+========================================================= */
+
 async function verify(){
 
-let correct=getAnswer()
-let input=document.getElementById("captchaInput").value.toUpperCase()
+    let correct =
+        getAnswer();
 
-let res=await fetch("http://127.0.0.1:5000/verify",{
-method:"POST",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify({
-username:document.getElementById("username").value,
-password:document.getElementById("password").value,
-captcha_answer:correct,
-user_input:input,
-question:currentQuestion,
-mouse:movements,
-clicks:clicks,
-keys:keys,
-time:(Date.now()-startTime)
-})
-})
+    let input =
+        document
+        .getElementById("captchaInput")
+        .value
+        .toUpperCase();
 
-let data=await res.json()
 
-document.getElementById("status").innerText=data.status
+    let elapsed =
+        Date.now() - startTime;
 
-/* 🔥 FIX: regenerate when difficulty changes */
-if(data.difficulty){
-if(currentDifficulty !== data.difficulty){
-currentDifficulty = data.difficulty
-drawCaptcha()   // 🔥 IMPORTANT
-return
+
+    /*
+     * Behaviour statistics
+     */
+
+    let avgMouseInterval =
+        averageInterval(mouseTimes);
+
+    let avgClickInterval =
+        averageInterval(clickTimes);
+
+    let avgKeyInterval =
+        averageInterval(keyTimes);
+
+    let keyIntervalVariance =
+        intervalVariance(keyTimes);
+
+
+    /*
+     * Average mouse speed
+     */
+
+    let averageSpeed = 0;
+
+    if(elapsed > 0){
+
+        averageSpeed =
+            totalDistance /
+            (elapsed / 1000);
+    }
+
+
+    document.getElementById("behaviour").innerText =
+        "Movement: " + movements +
+        " | Distance: " + Math.round(totalDistance) +
+        " | Direction changes: " + directionChanges +
+        " | Clicks: " + clicks +
+        " | Keys: " + keys;
+
+
+    try{
+
+        let res =
+            await fetch(
+                "http://127.0.0.1:5000/verify",
+                {
+                    method:"POST",
+
+                    headers:{
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:JSON.stringify({
+
+                        username:
+                            document
+                            .getElementById("username")
+                            .value,
+
+                        password:
+                            document
+                            .getElementById("password")
+                            .value,
+
+                        captcha_answer:
+                            correct,
+
+                        user_input:
+                            input,
+
+                        question:
+                            currentQuestion,
+
+                        /*
+                         * Original ML features
+                         */
+
+                        mouse:
+                            movements,
+
+                        clicks:
+                            clicks,
+
+                        keys:
+                            keys,
+
+                        time:
+                            elapsed,
+
+                        /*
+                         * Additional behaviour
+                         */
+
+                        mouse_distance:
+                            totalDistance,
+
+                        direction_changes:
+                            directionChanges,
+
+                        average_speed:
+                            averageSpeed,
+
+                        average_mouse_interval:
+                            avgMouseInterval,
+
+                        average_click_interval:
+                            avgClickInterval,
+
+                        average_key_interval:
+                            avgKeyInterval,
+
+                        key_interval_variance:
+                            keyIntervalVariance
+                    })
+                }
+            );
+
+
+        let data =
+            await res.json();
+
+
+        document.getElementById("status")
+            .innerText = data.status;
+
+
+        /*
+         * Difficulty update
+         */
+
+        if(data.difficulty){
+
+            if(
+                currentDifficulty !==
+                data.difficulty
+            ){
+
+                currentDifficulty =
+                    data.difficulty;
+
+                drawCaptcha();
+
+                return;
+            }
+        }
+
+
+        /*
+         * Score
+         */
+
+        if(
+            data.human_score !== undefined
+        ){
+
+            document.getElementById("score")
+                .innerText =
+                "Human Score: " +
+                data.human_score +
+                "%";
+        }
+
+
+        /*
+         * Wrong CAPTCHA
+         */
+
+        if(
+            data.status &&
+            data.status.includes("Wrong")
+        ){
+
+            drawCaptcha();
+        }
+
+
+        /*
+         * Successful login
+         */
+
+        if(
+            data.status &&
+            data.status.includes(
+                "Access Granted"
+            )
+        ){
+
+            currentDifficulty = "Easy";
+
+            movements = 0;
+            clicks = 0;
+            keys = 0;
+
+            totalDistance = 0;
+            directionChanges = 0;
+
+            lastX = null;
+            lastY = null;
+            lastDX = null;
+            lastDY = null;
+
+            mouseTimes = [];
+            clickTimes = [];
+            keyTimes = [];
+
+            startTime = Date.now();
+        }
+
+    }
+    catch(error){
+
+        console.error(error);
+
+        document.getElementById("status")
+            .innerText =
+            "Server connection failed ❌";
+    }
 }
-}
 
-/* show score */
-if(data.human_score){
-document.getElementById("score").innerText =
-"Human Score: " + data.human_score + "%"
-}
 
-/* redraw on wrong */
-if(data.status.includes("Wrong")){
-drawCaptcha()
-}
+/* =========================================================
+   START
+========================================================= */
 
-/* reset on success */
-if(data.status.includes("Access Granted")){
-currentDifficulty="Easy"
-movements=clicks=keys=0
-startTime=Date.now()
-}
+window.onload = function(){
 
-}
-
-/* ===== START ===== */
-window.onload = () => drawCaptcha()
+    drawCaptcha();
+};
 
 </script>
 
